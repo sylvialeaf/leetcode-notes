@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 私人 / 内部工具（不公开到 GitHub）
+.claude/
+feishu_sync_index.md
+
+# OS / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
