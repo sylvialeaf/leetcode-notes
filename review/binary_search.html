@@ -86,8 +86,13 @@
   .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
   input[type=number]{width:70px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);
     background:var(--card2);color:var(--ink);font-family:inherit}
-  .vlog{font-family:"SF Mono",Consolas,monospace;font-size:12px;color:var(--muted);margin-top:12px;
-    white-space:pre-wrap;min-height:20px}
+  .vlog{font-family:"SF Mono",Consolas,monospace;font-size:12px;color:var(--ink);margin-top:12px;
+    white-space:pre-wrap;min-height:20px;background:var(--card2);border-radius:8px;padding:10px 12px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+  .tab{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card2);
+    color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit}
+  .tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .vmeta{font-size:13px;color:var(--muted);margin:8px 0 2px}
   footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 20px}
 </style>
 </head>
@@ -150,18 +155,20 @@ return left</pre>
   <h2>🗂️ 6 题卡片<span style="font-size:12px;color:var(--muted);font-weight:400;margin-left:8px">（开自测模式可盖住思路，先回忆再点开）</span></h2>
   <div class="grid" id="cards"></div>
 
-  <h2>▶️ 互动可视化：模板一找值（LC704）</h2>
+  <h2>▶️ 互动可视化：6 题逐步演示</h2>
   <div class="viz">
-    <div style="font-size:13px;color:var(--muted)">固定数组 <code>[-1, 0, 3, 5, 9, 12]</code>，输入 target，点「下一步」看 left / mid / right 怎么砍一半。</div>
+    <div class="tabs" id="vizTabs"></div>
+    <div class="vmeta" id="vmeta"></div>
     <div class="vrow" id="vizRow"></div>
     <div class="controls">
-      <label style="font-size:13px">target =</label>
-      <input type="number" id="target" value="9">
+      <span id="paramWrap" style="display:flex;gap:6px;align-items:center"></span>
+      <button class="btn ghost" id="prevBtn">◂ 上一步</button>
       <button class="btn" id="stepBtn">下一步 ▸</button>
       <button class="btn ghost" id="autoBtn">自动 ▶</button>
       <button class="btn ghost" id="resetBtn">重置</button>
+      <span id="frameCount" style="font-size:12px;color:var(--muted)"></span>
     </div>
-    <div class="vlog" id="vlog">点「下一步」开始。</div>
+    <div class="vlog" id="vlog"></div>
   </div>
 
   <footer>照 <code>cheatsheet/踩坑与基础概念.md</code> 第五节 + <code>solutions/binary_search/</code> 生成 · 复盘口诀：骨架就两套，差别只在「命中是否返回、往哪边压、能不能排除 mid」。</footer>
@@ -224,36 +231,124 @@ document.addEventListener('click', e=>{
     e.target.classList.toggle('revealed');
 });
 
-// 可视化（704 模板一）
-const ARR=[-1,0,3,5,9,12]; let L,R,MID,done,foundMsg;
-const row=document.getElementById('vizRow'), vlog=document.getElementById('vlog'); let timer=null;
-function reset(){ L=0;R=ARR.length-1;MID=null;done=false;foundMsg=null;stopAuto();render();vlog.textContent='点「下一步」开始。'; }
-function render(){
-  row.innerHTML = ARR.map((v,i)=>{
-    let cls='vbox'; if(i<L||i>R) cls+=' cut'; if(i===MID&&!foundMsg) cls+=' mid';
-    if(foundMsg&&i===MID) cls+=' hit';
-    let p=''; if(i===L) p+='L'; if(i===R) p+=(p?'/':'')+'R'; if(i===MID) p='mid';
-    return `<div class="vcell"><div class="ptr">${i===MID?'mid':''}</div><div class="${cls}">${v}</div><div class="ptr">${(i===L?'L':'')}${(i===R?'R':'')}</div></div>`;
-  }).join('');
+// ===== 互动可视化：6 题 =====
+const ceil=(a,b)=>Math.floor((a+b-1)/b);
+
+function findF(a,t,retLeft){
+  let L=0,R=a.length-1,F=[];
+  while(L<=R){let m=(L+R)>>1;
+    if(a[m]===t){F.push({L,R,m,note:`nums[${m}]=${a[m]} == ${t} ✓ → return ${m}`,st:'found'});return F;}
+    if(a[m]<t){F.push({L,R,m,note:`nums[${m}]=${a[m]} < ${t} 偏小 → left=mid+1=${m+1}`});L=m+1;}
+    else{F.push({L,R,m,note:`nums[${m}]=${a[m]} > ${t} 偏大 → right=mid-1=${m-1}`});R=m-1;}
+  }
+  F.push({L,R,m:null,note:retLeft?`left>right 区间空 → return left=${L}（=插入位置）`:`left>right 区间空 → 没找到 return -1`,st:retLeft?'found':'notfound'});
+  return F;
 }
-function step(){
-  if(done) return;
-  const t=parseInt(document.getElementById('target').value);
-  if(L>R){done=true;vlog.textContent=`left(${L}) > right(${R})，区间空 → 没找到，return -1`;stopAuto();render();return;}
-  MID=(L+R)>>1; render();
-  if(ARR[MID]===t){foundMsg=true;done=true;vlog.textContent=`mid=${MID}, nums[mid]=${ARR[MID]} == target ✓ → return ${MID}`;stopAuto();render();}
-  else if(ARR[MID]<t){vlog.textContent=`mid=${MID}, nums[mid]=${ARR[MID]} < ${t} → 太小，去右半 left=mid+1=${MID+1}`;L=MID+1;}
-  else {vlog.textContent=`mid=${MID}, nums[mid]=${ARR[MID]} > ${t} → 太大，去左半 right=mid-1=${MID-1}`;R=MID-1;}
+function boundsF(a,t){
+  let F=[],L=0,R=a.length-1,ans=-1;
+  while(L<=R){let m=(L+R)>>1;
+    if(a[m]>=t){ans=m;F.push({L,R,m,phase:'找左边界',note:`nums[${m}]=${a[m]} >= ${t} → 记 ans=${m}，继续往左缩 right=mid-1`});R=m-1;}
+    else{F.push({L,R,m,phase:'找左边界',note:`nums[${m}]=${a[m]} < ${t} → left=mid+1`});L=m+1;}
+  }
+  let lb=(ans!==-1&&a[ans]===t)?ans:-1;
+  if(lb<0){F.push({L:0,R:a.length-1,m:null,phase:'找左边界',note:`没有 ${t} → return [-1,-1]`,st:'notfound'});return F;}
+  F.push({L:lb,R:lb,m:lb,phase:'找左边界',note:`左边界 = ${lb}`,st:'mark'});
+  L=0;R=a.length-1;ans=-1;
+  while(L<=R){let m=(L+R)>>1;
+    if(a[m]<=t){ans=m;F.push({L,R,m,phase:'找右边界',note:`nums[${m}]=${a[m]} <= ${t} → 记 ans=${m}，继续往右缩 left=mid+1`});L=m+1;}
+    else{F.push({L,R,m,phase:'找右边界',note:`nums[${m}]=${a[m]} > ${t} → right=mid-1`});R=m-1;}
+  }
+  F.push({L:ans,R:ans,m:ans,phase:'找右边界',note:`右边界 = ${ans} → 答案 [${lb}, ${ans}]`,st:'found'});
+  return F;
 }
-function stopAuto(){ if(timer){clearInterval(timer);timer=null;document.getElementById('autoBtn').textContent='自动 ▶';} }
-document.getElementById('stepBtn').onclick=step;
-document.getElementById('resetBtn').onclick=reset;
-document.getElementById('autoBtn').onclick=function(){
-  if(timer){stopAuto();return;} this.textContent='暂停 ⏸';
-  timer=setInterval(()=>{ if(done){stopAuto();return;} step(); },900);
+function rotF(a,t){
+  let L=0,R=a.length-1,F=[];
+  while(L<=R){let m=(L+R)>>1;
+    if(a[m]===t){F.push({L,R,m,note:`nums[${m}]=${a[m]} == ${t} ✓ → return ${m}`,st:'found'});return F;}
+    if(a[L]<=a[m]){
+      if(a[L]<=t&&t<a[m]){F.push({L,R,m,note:`左半 [${a[L]}..${a[m]}] 升序，${t} 夹在里面 → 缩左 right=mid-1`});R=m-1;}
+      else{F.push({L,R,m,note:`左半 [${a[L]}..${a[m]}] 升序，${t} 不在其中 → 去右半 left=mid+1`});L=m+1;}
+    }else{
+      if(a[m]<t&&t<=a[R]){F.push({L,R,m,note:`右半 [${a[m]}..${a[R]}] 升序，${t} 夹在里面 → 去右半 left=mid+1`});L=m+1;}
+      else{F.push({L,R,m,note:`右半 [${a[m]}..${a[R]}] 升序，${t} 不在其中 → 缩左 right=mid-1`});R=m-1;}
+    }
+  }
+  F.push({L,R,m:null,note:`没找到 return -1`,st:'notfound'});
+  return F;
+}
+function minF(a){
+  let L=0,R=a.length-1,F=[];
+  while(L<R){let m=(L+R)>>1;
+    if(a[m]>a[R]){F.push({L,R,m,note:`nums[${m}]=${a[m]} > nums[right]=${a[R]} → 最小在右半 left=mid+1`});L=m+1;}
+    else{F.push({L,R,m,note:`nums[${m}]=${a[m]} <= nums[right]=${a[R]} → 最小在左半(含 mid) right=mid（保留 mid）`,keepMid:true});R=m;}
+  }
+  F.push({L,R,m:L,note:`left==right=${L} → 最小值 = nums[${L}] = ${a[L]}`,st:'found'});
+  return F;
+}
+function kokoF(piles,h){
+  const max=Math.max(...piles);
+  if(isNaN(h)||h<piles.length) h=piles.length;
+  let lo=1,hi=max,F=[];
+  const hrs=k=>piles.reduce((s,p)=>s+ceil(p,k),0);
+  while(lo<hi){let mid=(lo+hi)>>1,H=hrs(mid);
+    if(H<=h){F.push({L:lo-1,R:hi-1,m:mid-1,note:`速度=${mid} → 需 ${H}h ≤ ${h} 可行 → 缩右 right=mid（保留）`,keepMid:true});hi=mid;}
+    else{F.push({L:lo-1,R:hi-1,m:mid-1,note:`速度=${mid} → 需 ${H}h > ${h} 太慢 → left=mid+1=${mid+1}`});lo=mid+1;}
+  }
+  F.push({L:lo-1,R:hi-1,m:lo-1,note:`left==right → 最小可行速度 = ${lo}（每小时吃 ${lo} 根）`,st:'found'});
+  return F;
+}
+
+const DEMOS={
+  '704':{title:'704 二分查找',tmpl:'模板一·找值',cells:[-1,0,3,5,9,12],param:{label:'target',val:9},frames:t=>findF([-1,0,3,5,9,12],t,false)},
+  '35':{title:'35 搜索插入位置',tmpl:'模板一·找值变体',cells:[1,3,5,6],param:{label:'target',val:2},frames:t=>findF([1,3,5,6],t,true)},
+  '34':{title:'34 第一个和最后一个位置',tmpl:'模板一·两次二分',cells:[5,7,7,8,8,10],param:{label:'target',val:8},frames:t=>boundsF([5,7,7,8,8,10],t)},
+  '33':{title:'33 搜索旋转排序数组',tmpl:'模板一·旋转',cells:[4,5,6,7,0,1,2],param:{label:'target',val:0},frames:t=>rotF([4,5,6,7,0,1,2],t)},
+  '153':{title:'153 旋转数组最小值',tmpl:'模板二·缩到幸存者',cells:[4,5,6,7,0,1,2],param:null,frames:()=>minF([4,5,6,7,0,1,2])},
+  '875':{title:'875 爱吃香蕉的珂珂',tmpl:'模板二·二分答案',piles:[3,6,7,11],param:{label:'h(小时)',val:8},frames:h=>kokoF([3,6,7,11],h)},
 };
-document.getElementById('target').onchange=reset;
-reset();
+
+let curKey='704',frames=[],idx=0,timer=null;
+const tabsEl=document.getElementById('vizTabs'),rowEl=document.getElementById('vizRow'),
+  metaEl=document.getElementById('vmeta'),logEl=document.getElementById('vlog'),
+  paramWrap=document.getElementById('paramWrap'),fcount=document.getElementById('frameCount');
+
+Object.keys(DEMOS).forEach(k=>{
+  const b=document.createElement('button');b.className='tab'+(k===curKey?' on':'');b.textContent=k;
+  b.onclick=()=>{curKey=k;[...tabsEl.children].forEach(c=>c.classList.toggle('on',c.textContent===k));load();};
+  tabsEl.appendChild(b);
+});
+function curCells(){const d=DEMOS[curKey];return d.cells||Array.from({length:Math.max(...d.piles)},(_,i)=>i+1);}
+function curParam(){const inp=document.getElementById('vparam');return inp?parseInt(inp.value):null;}
+function build(){const d=DEMOS[curKey];frames=d.param?d.frames(curParam()):d.frames();idx=0;render();}
+function load(){
+  const d=DEMOS[curKey];
+  metaEl.innerHTML=`<b>${d.title}</b> · <span class="tmpl-pill ${d.tmpl.includes('模板一')?'t1':'t2'}">${d.tmpl}</span> · `+
+    (d.piles?`piles=[${d.piles.join(',')}]，下面格子＝候选速度 1..${Math.max(...d.piles)}`:`数组 <code>[${d.cells.join(', ')}]</code>`);
+  paramWrap.innerHTML=d.param?`<label style="font-size:13px">${d.param.label} =</label><input type="number" id="vparam" value="${d.param.val}">`:'';
+  if(d.param)document.getElementById('vparam').onchange=build;
+  build();
+}
+function render(){
+  const cells=curCells(),f=frames[idx]||{};
+  const hit=(f.st==='found'||f.st==='mark');
+  rowEl.innerHTML=cells.map((v,i)=>{
+    let cls='vbox';
+    if(f.L!=null&&(i<f.L||i>f.R))cls+=' cut';
+    if(i===f.m)cls+=hit?' hit':' mid';
+    if(hit&&f.m==null&&i===f.L)cls+=' hit';
+    let mk='';if(i===f.L)mk+='L';if(i===f.R)mk+=(mk?'/':'')+'R';
+    return `<div class="vcell"><div class="ptr">${i===f.m?'mid':''}</div><div class="${cls}">${v}</div><div class="ptr">${mk}</div></div>`;
+  }).join('');
+  logEl.textContent=(f.phase?`【${f.phase}】`:'')+(f.note||'点「下一步」开始');
+  fcount.textContent=`第 ${Math.min(idx+1,frames.length)} / ${frames.length} 步`;
+}
+function stopAuto(){if(timer){clearInterval(timer);timer=null;document.getElementById('autoBtn').textContent='自动 ▶';}}
+function next(){if(idx<frames.length-1){idx++;render();}else stopAuto();}
+document.getElementById('stepBtn').onclick=next;
+document.getElementById('prevBtn').onclick=()=>{if(idx>0){idx--;render();}};
+document.getElementById('resetBtn').onclick=()=>{idx=0;stopAuto();render();};
+document.getElementById('autoBtn').onclick=function(){if(timer){stopAuto();return;}this.textContent='暂停 ⏸';timer=setInterval(()=>{if(idx>=frames.length-1){stopAuto();return;}next();},950);};
+load();
 </script>
 </body>
 </html>
